@@ -55,8 +55,9 @@ except Exception as e:
 st.subheader("📋 Dữ liệu sau xử lý")
 st.dataframe(df.head())
 
-# Thêm cột Failure
-df['Failure'] = (df['Quantity'] > 10).astype(int)
+# Tạo cột Failure linh hoạt
+threshold = df['Quantity'].median()
+df['Failure'] = (df['Quantity'] > threshold).astype(int)
 
 # Biểu đồ 1: Failure Distribution
 st.subheader("📊 1. Phân phối Failure")
@@ -102,27 +103,33 @@ try:
     y = df['Failure']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-    model = RandomForestClassifier()
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
+    unique_labels = y_train.unique()
+    st.write("🎯 Nhãn trong tập huấn luyện:", unique_labels)
 
-    if hasattr(model, "predict_proba"):
-        y_proba = model.predict_proba(X_test)[:, 1]
-        auc = roc_auc_score(y_test, y_proba)
-
-        fig6, ax6 = plt.subplots()
-        fpr, tpr, _ = roc_curve(y_test, y_proba)
-        ax6.plot(fpr, tpr, label=f"AUC = {auc:.2f}")
-        ax6.plot([0, 1], [0, 1], 'k--')
-        ax6.set_xlabel("False Positive Rate")
-        ax6.set_ylabel("True Positive Rate")
-        ax6.set_title("ROC Curve")
-        ax6.legend()
-        st.pyplot(fig6)
-
-        st.text("📄 Classification Report:")
-        st.text(classification_report(y_test, y_pred))
+    if len(unique_labels) < 2:
+        st.warning("⚠️ Không đủ dữ liệu đa dạng để huấn luyện mô hình (chỉ có 1 nhãn duy nhất).")
     else:
-        st.warning("⚠️ Không thể tính AUC vì model không hỗ trợ predict_proba.")
+        model = RandomForestClassifier()
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        if hasattr(model, "predict_proba") and model.predict_proba(X_test).shape[1] > 1:
+            y_proba = model.predict_proba(X_test)[:, 1]
+            auc = roc_auc_score(y_test, y_proba)
+
+            fig6, ax6 = plt.subplots()
+            fpr, tpr, _ = roc_curve(y_test, y_proba)
+            ax6.plot(fpr, tpr, label=f"AUC = {auc:.2f}")
+            ax6.plot([0, 1], [0, 1], 'k--')
+            ax6.set_title("ROC Curve")
+            ax6.set_xlabel("False Positive Rate")
+            ax6.set_ylabel("True Positive Rate")
+            ax6.legend()
+            st.pyplot(fig6)
+
+            st.text("📄 Classification Report:")
+            st.text(classification_report(y_test, y_pred))
+        else:
+            st.warning("⚠️ Không thể tính AUC vì model không trả về xác suất hai lớp.")
 except Exception as e:
     st.error(f"🚨 Lỗi trong huấn luyện mô hình: {e}")
